@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { SearchBox } from './components/SearchBox'
 import { TermResult } from './components/TermResult'
 import { ThemeToggle } from './components/ThemeToggle'
+import { Footer } from './components/Footer'
 import { useFavorites } from './hooks/useFavorites'
 import { useHakkaVariant } from './hooks/useHakkaVariant'
 import { useDictionary } from './db/client'
@@ -77,6 +78,8 @@ function App() {
           )}
         </>
       )}
+
+      <Footer />
     </div>
   )
 }
