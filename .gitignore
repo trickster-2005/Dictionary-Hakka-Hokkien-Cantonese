@@ -1,0 +1,34 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+__pycache__/
+*.pyc
+
+# project-specific: never commit source dictionary dumps or the built db
+# (words.hk content in particular is "ALL RIGHTS RESERVED, DO NOT DISTRIBUTE" —
+# see README.md)
+/data/raw/
+/public/dictionary.sqlite
+.env
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
