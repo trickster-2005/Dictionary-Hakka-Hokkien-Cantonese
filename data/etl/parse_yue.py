@@ -26,8 +26,9 @@ RAW_PATH = Path(__file__).resolve().parent.parent / "raw" / "粵典辭典資料.
 
 SOURCE_NAME = "粵典 words.hk"
 LICENSE_NOTE = (
-    "詞典內容版權屬 Hong Kong Lexicography Limited 所有,原始匯出檔案標註"
-    "「ALL RIGHTS RESERVED. DO NOT DISTRIBUTE」,僅供本機個人查詢使用,"
+    "詞典內容版權屬 Hong Kong Lexicography Limited 所有,採"
+    "Non-Commercial Open Data License 1.0 授權,非商業用途下可複製、修改、發佈、"
+    "再分發;本專案為非商業性質,僅供個人學習交流使用。"
     "詳見 https://words.hk/base/hoifong/"
 )
 

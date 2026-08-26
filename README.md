@@ -30,14 +30,21 @@ cp node_modules/sql.js/dist/sql-wasm-browser.wasm public/sql-wasm-browser.wasm
 [words.hk 的資料申請頁](https://words.hk/faiman/request_data/) 申請,下載後把
 `粵典辭典資料.csv` 放進 `data/raw/` 才能跑粵語那段 ETL。**
 
-## 資料授權 —— 為什麼原始檔案和 dictionary.sqlite 都不進版控
+## 資料授權
 
-- **粵語(words.hk)**:匯出 CSV 檔頭直接寫明「ALL RIGHTS RESERVED. DO NOT
-  DISTRIBUTE UNLESS WITH EXPLICIT PERMISSION」,詳見
-  <https://words.hk/base/hoifong/>。本機個人查詢沒問題,但**建出來的
-  `dictionary.sqlite` 一樣含有這些受版權保護的粵語釋義/例句內容,所以連同原始
-  CSV 一起被 `.gitignore` 排除**——如果之後想把這個 repo 推到遠端(尤其是公開
-  repo)或部署成公開網站,要先確認清楚 words.hk 那邊的授權範圍。
+- **粵語(words.hk)**:詞典資料採
+  [Non-Commercial Open Data License 1.0](https://words.hk/base/hoifong/) 授權,
+  非商業用途下可以複製、修改、發佈、再分發。本專案完全非商業,只做個人語言學習與
+  交流用途,屬於授權允許的範圍。
+
+  > 版權聲明:粵語資料版權持有人以《Non-Commercial Open Data License》授權發佈
+  > (<https://words.hk/base/hoifong/>),原始資料來自
+  > [words.hk 粵典](https://words.hk/)。本專案為非商業性質,僅供個人學習交流
+  > 使用,不涉及任何營利行為。
+
+  原始 CSV 與建出來的 `dictionary.sqlite` 沒有進版控,單純是因為屬於可以重新產生
+  的大型檔案(CSV 依 words.hk 的流程要各自申請取得、sqlite 是 build 產物),跟授權
+  疑慮無關。
 - **台語 / 客語(教育部)**:辭典本文採創用CC「姓名標示-禁止改作 3.0 台灣」,
   本專案僅重新排版供查詢使用,未更動釋義文字,且卡片上都附了 `source_url` 連回
   官方辭典頁面。
