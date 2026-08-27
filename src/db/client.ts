@@ -208,16 +208,74 @@ export class DictionaryClient {
 let sqlPromise: Promise<SqlJsStatic> | null = null
 let clientPromise: Promise<DictionaryClient> | null = null
 
+// GitHub Pages sends `Cache-Control: max-age=600` on dictionary.sqlite and
+// doesn't support custom response headers, so the browser's own HTTP cache
+// re-downloads the full ~14MB (gzipped) file on almost every repeat visit.
+// This keeps our own longer-lived copy in IndexedDB, keyed by the file's
+// ETag, so a revisit only needs a tiny HEAD request unless the dictionary
+// actually changed.
+const CACHE_DB_NAME = 'words-lookup-db-cache'
+const CACHE_STORE_NAME = 'files'
+const CACHE_KEY = 'dictionary.sqlite'
+
+interface CachedFile {
+  etag: string
+  bytes: ArrayBuffer
+}
+
+function openCacheDb(): Promise<IDBDatabase | null> {
+  return new Promise((resolve) => {
+    if (!('indexedDB' in window)) {
+      resolve(null)
+      return
+    }
+    const req = indexedDB.open(CACHE_DB_NAME, 1)
+    req.onupgradeneeded = () => req.result.createObjectStore(CACHE_STORE_NAME)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => resolve(null)
+  })
+}
+
+function readCachedFile(idb: IDBDatabase | null): Promise<CachedFile | null> {
+  if (!idb) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    const req = idb.transaction(CACHE_STORE_NAME, 'readonly').objectStore(CACHE_STORE_NAME).get(CACHE_KEY)
+    req.onsuccess = () => resolve((req.result as CachedFile | undefined) ?? null)
+    req.onerror = () => resolve(null)
+  })
+}
+
+function writeCachedFile(idb: IDBDatabase | null, file: CachedFile): void {
+  if (!idb) return
+  // Fire-and-forget — a failed write just means next visit re-downloads.
+  idb.transaction(CACHE_STORE_NAME, 'readwrite').objectStore(CACHE_STORE_NAME).put(file, CACHE_KEY)
+}
+
 async function loadClient(): Promise<DictionaryClient> {
   if (!sqlPromise) {
     sqlPromise = initSqlJs({ locateFile: (file) => `${import.meta.env.BASE_URL}${file}` })
   }
-  const SQL = await sqlPromise
-  const res = await fetch(`${import.meta.env.BASE_URL}dictionary.sqlite`)
+  const [SQL, idb] = await Promise.all([sqlPromise, openCacheDb()])
+  const url = `${import.meta.env.BASE_URL}dictionary.sqlite`
+
+  const [cached, currentEtag] = await Promise.all([
+    readCachedFile(idb),
+    fetch(url, { method: 'HEAD', cache: 'no-store' })
+      .then((r) => r.headers.get('etag'))
+      .catch(() => null),
+  ])
+
+  if (cached && currentEtag && cached.etag === currentEtag) {
+    return new DictionaryClient(new SQL.Database(new Uint8Array(cached.bytes)))
+  }
+
+  const res = await fetch(url)
   if (!res.ok) {
     throw new Error(`Failed to fetch dictionary.sqlite: ${res.status}`)
   }
   const buf = await res.arrayBuffer()
+  const etag = res.headers.get('etag')
+  if (etag) writeCachedFile(idb, { etag, bytes: buf })
   return new DictionaryClient(new SQL.Database(new Uint8Array(buf)))
 }
 
