@@ -62,6 +62,11 @@ network 分頁觀察後發現:搜尋是前端 JavaScript 送 `POST /search_list/
 表單頁(用 `curl` 比對過回傳的 byte 數完全相同)。結論:這個網站沒有任何可以外部
 連結直達搜尋結果的網址格式，只能連回首頁。
 
+**後續更新**:雖然 `/search_list/`(結果頁)忽略 GET 參數，但**首頁**
+(`/`)本身的 JS 會讀 `?keyword=` 並把搜尋框**預填**好(不會自動送出查詢)——這是
+另一個頁面、另一段邏輯，之前沒測到。改成 `source_url` 帶 `?keyword={詞}` 連回首頁，
+使用者少打一次字，只是還是要自己再按一次「檢索」。
+
 ### 1.7 客語拼音一開始靠「猜」，後來直接找到官方原始資料
 最早用的是 `g0v/moedict-data-hakka` 處理過的 `dict-hakka.json`，拼音欄位是「六腔
 壓縮在同一字串、用上標數字標調值」的格式(例如 `gia²⁴`)，要顯示成「教育部客語拼音」
@@ -193,6 +198,78 @@ repeat 次數整個展開，導致每一列陣列長度變成 16384(絕大部分
 機制不同」。改完之後 `aliases` 筆數從 197,094 降到 99,857(跨語言雜訊消失)，
 分組數從 35,534 增加到 48,395(分組變小、變多，但都限定在單一語言內)。
 
+### 1.16 台語資料來源(`dict-twblg.json`)整個分類系統性缺失，換成官方 ODS 重寫 parser
+使用者回報查「繁華」在台語找不到，明明教育部辭典網站上查得到。實際到
+sutian.moe.edu.tw 查證，「繁華」確實存在，但被標記成「**臺華共同詞，無義項**」——
+教育部辭典的一個分類，代表「用字、意思跟華語相同，不另外寫釋義」。回頭檢查
+`data/raw/dict-twblg.json`(g0v 處理過的匯出版本，先前確認過跟最新版逐位元組相同，
+不是快取太舊的問題)，發現「臺華共同詞」「無義項」這兩個字串**整份檔案一次都沒有
+出現過**——不只「繁華」，g0v 的匯出把這整個分類系統性排除掉了。
+
+剛好使用者同時去教育部官方下載頁拿到 `kautian.ods`(還附了完整音檔，見下面「音檔」
+一節)，是個多工作表的關聯式匯出(`詞目`/`義項`/`例句`/`詞目tuì詞目近義`/
+`義項tuì詞目近義`...19 個工作表)，`詞目類型` 欄位清楚列出五種分類:主詞目
+15,558 筆、臺華共同詞 5,548 筆、單字不成詞者 3,106 筆、近反義詞不單列詞目者
+3,018 筆、附錄 2,363 筆——g0v 的 JSON 匯出只涵蓋了「主詞目」，其餘四種
+(佔全部 29,593 筆詞目的 47%!)完全沒有反映在我們原本的資料來源裡。
+
+**過程中額外挖到一個 `_common.py` 的 bug**:改用 `read_ods_rows(sheet_name=...)`
+讀多工作表時發現，所有「id」欄位(`詞目id`/`義項id`)不管怎麼讀都是空字串。查了
+ODS 原始 XML 才發現:純數字儲存格(像 id)沒有 `<text:p>` 子元素，數值直接放在
+`office:value` 屬性上(`<table-cell office:value="1" office:value-type="float" />`)，
+而 `cell_text()` 只讀 `.//text:p`，數字欄位一律讀成空字串——不是這個檔案的資料真的
+缺 id，是我們的 ODS reader 從一開始就沒處理過純數字儲存格。修法:`cell_text()`
+在找不到 `<text:p>` 時，退回讀 `office:value`(型別是 `float` 才讀，讀到整數則轉
+乾淨的整數字串)。這個修正是共用邏輯，客語 ODS 的既有解析結果不受影響(欄位都是
+文字型別，重跑後筆數完全一致，`fetch_hakkadict.py` 那次探索用到的技巧沒有用上，
+純粹是 ODS 格式細節)。
+
+id 修好之後，把 `parse_nan.py` 整個換掉，直接讀 `kautian.ods` 的多個工作表(不
+再呼叫 `fetch_moedict.py` 抓 `dict-twblg.json`，這個來源已經不再使用):
+- `詞目` × `義項` 用 `詞目id` 關聯，一個詞目底下的多個義項合併成一則定義
+  (沿用既有「「詞性」解說」逐行呈現的慣例)。
+- `例句` 用 `詞目id`+`義項id` 關聯到義項，直接有結構化的漢字/羅馬字/華語三欄
+  (比舊的 `￹原文￺羅馬字￻翻譯` 括號格式更乾淨，不用再 regex 解析)。
+- `詞目tuì詞目近義`(詞目層級近義詞)進 `strong_aliases`(`kind='synonym'`，
+  參與 union-find)——原始資料只單方向記錄，這裡讀取時兩個方向都補上。
+- `義項tuì詞目近義`(義項層級近義詞)進一般 `aliases`(`kind='gloss'`，直接別名，
+  刻意不進 union-find)——如果拿去做強關聯，一個多義詞其中一個義項的近義詞會把
+  不相干的詞拖進同一個群組，是跟 1.15「牽手」同一類問題，這次直接在資料層面
+  避開。
+- 五種 `詞目類型` 一視同仁全部收錄(人工抽查過 單字不成詞者/近反義詞不單列詞目者/
+  附錄 的內容，都是「事」「深山林內」「立春」這種正常詞彙，不是要濾掉的雜訊)；
+  沒有義項的列(臺華共同詞、單字不成詞者、近反義詞不單列詞目者這三類幾乎全部
+  屬於這種情況)改用一句簡短說明代替空白釋義(例如臺華共同詞顯示「臺華共同詞，
+  與華語用字、意思相同。」)，而不是像舊版一樣整列跳過不收錄。
+
+**改完立刻冒出一個回歸**:重新比對「爸爸」，發現原本能找到的台語「阿爸」「爹」
+「阿爹」全部消失了。追查發現 `kautian.ods` 的「解說」欄位習慣寫成「短義。分類
+標籤。完整說明。」一整串(例如「阿爸」的解說是「爸爸。稱謂。子女對父親的稱呼。」)，
+`extract_glosses` 的規則是「剝掉一個結尾句號後，只要還剩句號就整段放棄」(1.9 的
+防呆機制)，這種寫法內部還有兩個句號，整段被判定成「長句子」而放棄抽取，一個
+別名都沒產生。修法:對台語的每個義項，只把「解說」文字**第一個句號之前**的片段
+拿去餵 `extract_glosses`(分類標籤跟後面的完整說明本來就不該被當同義詞候選)，
+而不是整段解說。這是台語專屬的處理，`extract_glosses` 函式本身完全沒動，粵語/
+客語不受影響。
+
+**結果**:台語 entries 從 14,998 筆增加到 29,593 筆(接近兩倍)，「繁華」等原本
+系統性缺失的詞條全部找得到。順便給 `examples` 表加了 `example_romanization` 欄位
+(之前的例句只有原文+翻譯，`kautian.ods` 的例句多了乾淨的羅馬字欄位可以直接用)，
+台語卡片的例句現在會多顯示一行羅馬字讀音；`register_tag` 對台語也開始有內容了
+(填「分類」，例如「居住環境」)，之前這個欄位對台語永遠是空的。
+
+### 音檔:發現規模後決定先不接
+`kautian.ods` 的官方下載頁附了完整的詞目/例句音檔，檔名可以直接從資料算出來
+(桶目錄規則 `floor(id/1000)`，例如 `word-mp3/25/25379(1).mp3`)，技術上串接
+完全沒有障礙。但實際清點檔案數與大小後:詞目音檔 22,298 個檔案共 289MB、例句
+音檔 17,907 個檔案共 502MB，合計 **40,205 個檔案、約 790MB**。目前 GitHub Pages
+的部署方式是整個 `gh-pages` branch clone 下來、覆蓋實體檔案、commit 推送，
+`dictionary.sqlite` 已經有 ~54MB 被 GitHub 提醒過大，再加 790MB、4 萬多個檔案
+進去，repo 大小與每次 deploy 的 clone/push 時間都會大幅惡化。使用者在看過
+實測數字後明確決定「先完全不加音檔」，音檔檔案本身刻意保留在 repo 外(見
+`.gitignore` 的 `/Hokkien/`)，之後如果要做，音檔存放方式(Git LFS、外部物件
+儲存等)需要另外評估，不是單純把 URL 填進 `parse_nan.py` 就好。
+
 ---
 
 ## 2. 目前暫時妥協的寫法(Workaround)或尚未修復的 Edge Cases
@@ -214,16 +291,28 @@ repeat 次數整個展開，導致每一列陣列長度變成 16384(絕大部分
 
 ### 音檔
 - **三個語言目前都沒有任何單字或例句發音**。客語原本有音檔來源但網域已死(見 1.5)，
-  台語/粵語則是從一開始就沒有嘗試接音檔來源。`PlayButton` 元件本身已經做好「點擊
-  開新分頁播放/下載」的 UI，一旦未來找到可用的音檔網址，理論上只要在對應的
+  粵語則是從一開始就沒有嘗試接音檔來源。`PlayButton` 元件本身已經做好「點擊開新
+  分頁播放/下載」的 UI，一旦未來找到可用的音檔網址，理論上只要在對應的
   `parse_*.py` 填入 `word_audio`/`examples[].audio_url` 就能直接生效，不用改前端。
+- **台語其實已經有音檔了，只是還沒接**:`kautian.ods` 的官方下載頁附了完整的
+  詞目音檔(`word-mp3/`)跟例句音檔(`sentence-mp3/`)，實測共 40,205 個檔案、約
+  790MB(詞目 289MB + 例句 502MB)。檔名可以直接從 `詞目` 表的「羅馬字音檔檔名」
+  欄位、`例句` 表的「音檔檔名」欄位算出來，桶目錄規則是 `floor(id / 1000)`(例如
+  id=25379 對應 `word-mp3/25/25379(1).mp3`)——技術上完全打通了，**故意先不接**
+  是因為 790MB、4 萬多個檔案對 git repo(尤其是每次 deploy 都要整包 clone 的
+  `gh-pages` 手動流程)負擔太大，使用者本人明確決定先擱置，之後如果要做，音檔
+  存放方式(是否用 Git LFS、外部物件儲存等)需要另外評估，不是單純接資料而已。
 
 ### 連結精準度
 - 粵語「閱讀更多」連到 `words.hk/zidin/{詞}`，這是官網自己的詞彙路由，大部分情況
   下能連到正確頁面。
 - 台語「閱讀更多」連到官網的**搜尋結果頁**(`?lui=tai_su&tsha={詞}`)，不是精準
-  單詞頁——因為 `dict-twblg.json` 的內部 id 跟官網自己的編號對不起來(見 1.4)。
-- 客語「閱讀更多」**只能連回首頁**，官網沒有任何可用的搜尋結果網址格式(見 1.6)。
+  單詞頁——`kautian.ods` 自己的「詞目id」沒有確認過跟官網內部編號一致(見 1.4，
+  舊的 `dict-twblg.json` 內部 id 已經證實對不起來，換了資料來源後這個結論還是
+  沿用，沒有重新逐一驗證)。
+- 客語「閱讀更多」連回首頁時會用 `?keyword=` 帶入查詢字自動填好搜尋框(見 1.6 的
+  後續更新)，使用者省去重新輸入，但官網搜尋是 POST 送出、GET 網址參數不會自動
+  觸發查詢，所以還是要**再按一次「檢索」**，不是完全免點擊的精準單詞頁。
 - 台語卡片額外附一個 iTaigi 愛台語(`itaigi.tw/k/{詞}`)連結，是社群共筆資料，
   品質可能跟教育部辭典不一致，沒有做內容比對驗證。
 
@@ -254,6 +343,10 @@ repeat 次數整個展開，導致每一列陣列長度變成 16384(絕大部分
   詞性(`pos:`)是直接前綴進 `definition` 文字顯示(例如「「動詞」...」)，兩者
   沒有混在同一個欄位裡，但如果之後要在 UI 上把「詞性」獨立成另一個 tag，需要重新
   從 `content` 解析、目前的 schema 沒有專門的詞性欄位。
+- `register_tag` 這個欄位三語言用途不完全一樣:粵語放 `(label:...)`、客語放
+  「詞性」、**台語(改用 `kautian.ods` 之後)放「分類」**(例如「性質、程度，數詞、
+  量詞」、「居住環境」)——是題材分類，不是詞性;台語自己的詞性(「名詞」「動詞」
+  等)還是跟客語一樣前綴進 `definition` 文字裡，沒有獨立欄位。
 
 ---
 
@@ -275,16 +368,18 @@ Words-lookup/                     # 專案根目錄(獨立 git repo,不在 ocf-i
 │   ├── schema.sql                  # SQLite schema,前端與 ETL 共用同一份定義(見下方「資料庫 Schema」)
 │   ├── raw/                        # gitignore,不進版控——原始來源檔案放這裡
 │   │   ├── 粵典辭典資料.csv          # words.hk 匯出(需使用者自行申請取得)
-│   │   ├── dict-twblg.json          # 台語,fetch_moedict.py 自動下載
+│   │   ├── kautian.ods              # 台語,教育部官方下載頁(需自行下載,見 1.16)
 │   │   └── 客語典文字資料.ods         # 客語原始 ODS,fetch_moedict.py 自動下載
 │   └── etl/
 │       ├── _common.py               # 共用工具:extract_glosses()(別名抽取heuristic,
 │       │                             # 見 1.9)、UnionFind(同義詞分組)、
-│       │                             # parse_bracketed_example()(￹￺￻ 例句標記解析)、
-│       │                             # read_ods_rows()(ODS 解析,見 1.13)
-│       ├── fetch_moedict.py          # 下載台語 JSON + 客語 ODS 到 data/raw/
+│       │                             # parse_bracketed_example()(￹￺￻ 例句標記解析,
+│       │                             # 只剩 parse_hak.py 用得到)、read_ods_rows()
+│       │                             # (ODS 解析,支援多工作表,見 1.13、1.16)
+│       ├── fetch_moedict.py          # 下載客語 ODS 到 data/raw/(台語已改用手動下載
+│       │                             # 的 kautian.ods,見 1.16)
 │       ├── parse_yue.py              # 解析粵典 CSV → 標準化 entry dict(見「粵語解析重點」)
-│       ├── parse_nan.py              # 解析台語 JSON → 標準化 entry dict
+│       ├── parse_nan.py              # 解析台語 ODS → 標準化 entry dict(見「台語解析重點」)
 │       ├── parse_hak.py              # 解析客語 ODS → 標準化 entry dict(見「客語解析重點」)
 │       └── build_db.py               # 整合三個 parser 輸出 + union-find 別名展開,
 │                                      # 寫入 public/dictionary.sqlite
@@ -338,7 +433,8 @@ zh_terms   (id, headword UNIQUE)
 entries    (id, zh_term_id→zh_terms, lang['yue'|'nan'|'hak'], variant[hak限定:
             'hailu'|'sixian'], script, pronunciation_1, pronunciation_2,
             definition, register_tag, source_name, source_url, license_note)
-examples   (id, entry_id→entries, example_text, example_translation_zh, audio_url)
+examples   (id, entry_id→entries, example_text, example_romanization[目前只有
+            台語填], example_translation_zh, audio_url)
 word_audio (id, entry_id→entries, audio_url)
 aliases    (id, entry_id→entries, alias, kind['synonym'|'gloss'])
 ```
@@ -376,11 +472,16 @@ aliases    (id, entry_id→entries, alias, kind['synonym'|'gloss'])
   「瓊:king4，凝:king4」)，每個寫法各自產生一筆 entries。
 
 ### 台語解析重點(`parse_nan.py`)
-- 讀 `dict-twblg.json`，每個 `heteronyms[]` 元素是一筆 entries。
-- 別名來源:`synonyms` 欄位(→`kind='synonym'`)、從 `definitions[].def` 用
-  `extract_glosses` 抽取(→`kind='gloss'`)。
-- 例句格式 `￹原文￺台羅￻翻譯`，`parse_bracketed_example()` 解析。
-- `source_url` 指向官網搜尋結果頁，不是精準單詞頁(見 1.4)。
+- 讀 `kautian.ods`(教育部官方下載頁，不是 g0v 的 `dict-twblg.json`，見 1.16)，
+  多工作表用數字 id 互相關聯，一個 `詞目` 對多個 `義項`。
+- `詞目類型` 五種分類(主詞目/臺華共同詞/單字不成詞者/近反義詞不單列詞目者/附錄)
+  一視同仁全部收錄;沒有義項的列(後三類幾乎都是)用簡短說明取代空白釋義。
+- 別名來源:`詞目tuì詞目近義`(詞目層級，→`kind='synonym'`，單方向資料讀取時補齊
+  雙向)、`義項tuì詞目近義`(義項層級，→`kind='gloss'`，刻意不進 union-find)、
+  從每個義項「解說」的**第一個句號之前**用 `extract_glosses` 抽取
+  (→`kind='gloss'`，見 1.16 為何只取第一句)。
+- 例句直接是結構化的漢字/羅馬字/華語三欄，不用再解析 `￹￺￻` 括號格式。
+- `source_url` 指向官網搜尋結果頁，不是精準單詞頁(見 1.4、1.16)。
 
 ### 客語解析重點(`parse_hak.py`)
 - 讀 `客語典文字資料.ods`(不是 `dict-hakka.json`，見 1.7)，用 `read_ods_rows()`
@@ -458,23 +559,25 @@ aliases    (id, entry_id→entries, alias, kind['synonym'|'gloss'])
   「GitHub Pages 部署是全手動流程」)
 - 專案狀態:README.md 開頭標記「🚧 尚在開發中」，文末有 TODO 清單。
 
-### 資料庫規模(union-find 改成三語言各自獨立分組之後，見 1.15)
-- 華語詞條(`zh_terms`)共 46,008 筆
-- `entries` 共 76,737 筆，拆解如下:
+### 資料庫規模(台語換成 `kautian.ods` 之後，見 1.16)
+- 華語詞條(`zh_terms`)共 54,443 筆
+- `entries` 共 91,332 筆，拆解如下:
   - 粵語(yue):31,147 筆
-  - 台語(nan):14,998 筆
+  - 台語(nan):29,593 筆(換成官方 ODS 前是 14,998 筆——`dict-twblg.json` 少了
+    「臺華共同詞」等四個分類，見 1.16)
   - 客語(hak，海陸+四縣合計):30,592 筆
-- `aliases`(含 union-find 展開後)共 99,857 筆，三語言各自獨立的同義詞分組合計
-  48,395 組(其中 2 組因超過 `MAX_COMPONENT_SIZE=80` 被退回只用直接別名)。改成
-  各語言獨立分組前是 197,094 筆別名、35,534 組(當時三語言合併成一張圖)。
-- `dictionary.sqlite` 檔案大小約 55MB(超過 GitHub 建議的單檔 50MB，尚未到 100MB
+- `aliases`(含 union-find 展開後)共 100,870 筆，三語言各自獨立的同義詞分組合計
+  63,595 組(其中 2 組因超過 `MAX_COMPONENT_SIZE=80` 被退回只用直接別名)。
+- `dictionary.sqlite` 檔案大小約 58MB(超過 GitHub 建議的單檔 50MB，尚未到 100MB
   硬限制)
 
 (以上數字會隨來源資料更新、parser 邏輯調整而變動，實際數字請重跑
 `npm run build:data` 看 console 輸出。)
 
 ### 修補既有缺口(順序不代表優先度，整理自第 2 節)
-1. 客語、台語、粵語的單字、例句發音音檔來源（目前完全沒有）
+1. 客語、粵語的單字、例句發音音檔來源（目前完全沒有）；台語的音檔其實已經拿到手
+   （`kautian.ods` 附的 790MB、4 萬多個檔案，見 1.16），卡住的是存放方式，不是
+   找不到來源
 2. 日語重新串接（全新 ETL，非既有架構的延伸）
 3. UI 視覺設計持續打磨（目前偏功能優先的陽春版面）
 4. 粵語資料公開部署前的正式授權確認（目前只做過一輪自行研讀，非正式法律諮詢）
@@ -500,14 +603,18 @@ aliases    (id, entry_id→entries, alias, kind['synonym'|'gloss'])
   現在完全依賴各來源自行標註的 sim/synonyms/對應國語欄位。
 - 拼音／注音查詢（現在只能用漢字查，如果知道台羅、粵拼、客語拼音但不知道漢字寫法，
   查不到）。
-- 例句真人朗讀募集（類似 Tatoeba 的社群錄音模式），順便解決音檔完全空缺的問題。
+- 客語、粵語目前完全沒有音檔來源，例句真人朗讀募集（類似 Tatoeba 的社群錄音模式）
+  是一個方向；台語則已經有現成的官方音檔（見下面「平台與基礎建設」的存放方式
+  問題），不需要募集，缺的是把它接上線。
 
 **平台與基礎建設**
 - PWA／離線支援：把 `dictionary.sqlite` 用 Service Worker 快取，離線也能查詢。
 - CI/CD 自動化 GitHub Pages 部署（main 有更新時自動 build 並同步 gh-pages，取代
   現在的手動流程）。
-- `dictionary.sqlite` 改用 Git LFS 或外部 CDN 存放，避免單檔案持續逼近 GitHub
-  100MB 硬限制。
+- `dictionary.sqlite`（目前約 58MB）改用 Git LFS 或外部 CDN 存放，避免單檔案持續
+  逼近 GitHub 100MB 硬限制；台語音檔（790MB、4 萬多個檔案，已下載在本機、故意
+  沒進 repo，見 1.16）如果要接上線，同樣需要先解決存放方式，不能直接照現在
+  「整包 clone gh-pages branch 覆蓋推送」的部署流程硬塞進去。
 - 收藏清單匯出／匯入（例如匯出成 CSV 或 Anki 卡片格式，方便搭配其他學習工具）。
 - 分享單一詞條時的 Open Graph 預覽卡（目前 `?q=` 網址可以分享，但社群平台預覽
   只會看到通用的網站標題，沒有那個詞本身的內容）。

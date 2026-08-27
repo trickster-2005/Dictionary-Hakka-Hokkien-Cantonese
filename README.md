@@ -26,10 +26,14 @@ npm run dev
 cp node_modules/sql.js/dist/sql-wasm-browser.wasm public/sql-wasm-browser.wasm
 ```
 
-`npm run build:data` 第一次執行會自動下載台語的 JSON、客語的 ODS 到 `data/raw/`
-（之後重跑會直接使用本機快取）。**粵語的來源 CSV 需要自己到
-[words.hk 的資料申請頁](https://words.hk/faiman/request_data/) 申請，下載後把
-`粵典辭典資料.csv` 放進 `data/raw/` 才能跑粵語那段 ETL。**
+`npm run build:data` 第一次執行會自動下載客語的 ODS 到 `data/raw/`（之後重跑會直接
+使用本機快取）。**粵語、台語的來源檔案都需要自己下載：**
+- 粵語：到 [words.hk 的資料申請頁](https://words.hk/faiman/request_data/) 申請，
+  下載後把 `粵典辭典資料.csv` 放進 `data/raw/`。
+- 台語：到教育部臺灣台語常用詞辭典的官方下載頁拿 `kautian.ods`，放進 `data/raw/`。
+  沒有走 g0v 的 `moedict-data-twblg` JSON 匯出，是因為那份匯出漏掉了「臺華共同詞」
+  等好幾個分類（例如「繁華」這種用字、意思都跟華語相同、不另外寫釋義的詞），官方
+  原始的 ODS 才有完整資料。
 
 ## 搜尋比對邏輯（重點摘要）
 
@@ -59,8 +63,10 @@ cp node_modules/sql.js/dist/sql-wasm-browser.wasm public/sql-wasm-browser.wasm
 
 ## 已知限制
 
-- 目前沒有任何發音音檔（客語官方音檔站已失效或無法組出可用網址，其餘語言尚未串接）
-- 客語的「閱讀更多」只能連回辭典首頁，粵語／台語則有精準的搜尋結果頁連結
+- 目前沒有任何發音音檔——教育部台語辭典官方下載頁其實有完整的詞目／例句音檔
+  （約 790MB、4 萬多個檔案），但還沒串進來，怕拖累 repo 大小與部署速度
+- 客語的「閱讀更多」連到辭典首頁時會自動帶入查詢字（`?keyword=`），使用者只要再按
+  一次「檢索」；粵語／台語則有精準的搜尋結果頁連結，可以直接點開
 - 部分查詢仍找不到結果（定義是完整句子、用字差異太大等），比對規則持續調整中
 
 完整的踩坑紀錄、暫時妥協寫法、資料夾結構與未來規劃，見

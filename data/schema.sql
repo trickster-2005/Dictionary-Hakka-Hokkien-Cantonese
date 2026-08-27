@@ -22,6 +22,7 @@ CREATE TABLE examples (
   id INTEGER PRIMARY KEY,
   entry_id INTEGER NOT NULL REFERENCES entries(id),
   example_text TEXT NOT NULL,
+  example_romanization TEXT,       -- currently only populated for 台語 (kautian.ods 例句)
   example_translation_zh TEXT,
   audio_url TEXT
 );

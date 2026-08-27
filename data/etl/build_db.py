@@ -43,7 +43,7 @@ def build():
     yue_rows = parse_yue.parse()
     print(f"  {len(yue_rows)} entries")
 
-    print("Parsing Taiwanese Hokkien (moedict-data-twblg)...")
+    print("Parsing Taiwanese Hokkien (kautian.ods)...")
     nan_rows = parse_nan.parse()
     print(f"  {len(nan_rows)} entries")
 
@@ -151,9 +151,10 @@ def build():
         entry_id = cur.lastrowid
         for ex in row["examples"]:
             conn.execute(
-                """INSERT INTO examples (entry_id, example_text, example_translation_zh, audio_url)
-                   VALUES (?, ?, ?, ?)""",
-                (entry_id, ex["text"], ex.get("translation_zh"), ex.get("audio_url")),
+                """INSERT INTO examples
+                   (entry_id, example_text, example_romanization, example_translation_zh, audio_url)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (entry_id, ex["text"], ex.get("romanization"), ex.get("translation_zh"), ex.get("audio_url")),
             )
         for a in row["audio"]:
             conn.execute(

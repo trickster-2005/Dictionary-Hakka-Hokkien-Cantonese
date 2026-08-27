@@ -184,6 +184,7 @@ export class DictionaryClient {
       out.push({
         id: row.id as number,
         exampleText: row.example_text as string,
+        exampleRomanization: row.example_romanization as string | null,
         exampleTranslationZh: row.example_translation_zh as string | null,
         audioUrl: row.audio_url as string | null,
       })

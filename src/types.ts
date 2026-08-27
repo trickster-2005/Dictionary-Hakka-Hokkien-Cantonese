@@ -4,6 +4,7 @@ export type HakkaVariant = 'hailu' | 'sixian'
 export interface Example {
   id: number
   exampleText: string
+  exampleRomanization: string | null
   exampleTranslationZh: string | null
   audioUrl: string | null
 }

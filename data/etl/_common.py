@@ -7,15 +7,18 @@ from pathlib import Path
 _ODS_NS = {
     "table": "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
     "text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+    "office": "urn:oasis:names:tc:opendocument:xmlns:office:1.0",
 }
 _ODS_TABLE_NS = _ODS_NS["table"]
+_ODS_OFFICE_NS = _ODS_NS["office"]
 
 
-def read_ods_rows(path: Path, cap_repeat: int = 40) -> list[list[str]]:
-    """Reads the first sheet of a .ods spreadsheet into a list of row value
-    lists (first row is the header). No third-party dependency (odfpy etc.)
-    needed — .ods is just a zip of XML, and the schema is small enough to
-    walk directly.
+def read_ods_rows(path: Path, cap_repeat: int = 40, sheet_name: str | None = None) -> list[list[str]]:
+    """Reads one sheet of a .ods spreadsheet into a list of row value lists
+    (first row is the header). No third-party dependency (odfpy etc.) needed
+    — .ods is just a zip of XML, and the schema is small enough to walk
+    directly. `sheet_name` selects a specific sheet in a multi-sheet
+    workbook; omit it for a single-sheet file (uses the first/only sheet).
 
     `cap_repeat` bounds how many times a single `number-columns-repeated`
     cell gets expanded — real data rows only need a couple dozen columns;
@@ -27,12 +30,31 @@ def read_ods_rows(path: Path, cap_repeat: int = 40) -> list[list[str]]:
         with z.open("content.xml") as f:
             tree = ET.parse(f)
 
-    table = tree.getroot().find(".//table:table", _ODS_NS)
+    if sheet_name is None:
+        table = tree.getroot().find(".//table:table", _ODS_NS)
+    else:
+        table = None
+        for t in tree.getroot().findall(".//table:table", _ODS_NS):
+            if t.get(f"{{{_ODS_TABLE_NS}}}name") == sheet_name:
+                table = t
+                break
+        if table is None:
+            raise ValueError(f"sheet {sheet_name!r} not found in {path}")
     rows = table.findall("table:table-row", _ODS_NS)
 
     def cell_text(cell: ET.Element) -> str:
         paragraphs = cell.findall(".//text:p", _ODS_NS)
-        return "\n".join("".join(p.itertext()) for p in paragraphs)
+        if paragraphs:
+            return "\n".join("".join(p.itertext()) for p in paragraphs)
+        # A numeric cell (e.g. an id column) has no <text:p> at all — its
+        # value lives in the office:value attribute instead. Missing this
+        # silently turned every id column into an empty string.
+        if cell.get(f"{{{_ODS_OFFICE_NS}}}value-type") == "float":
+            value = cell.get(f"{{{_ODS_OFFICE_NS}}}value")
+            if value is not None:
+                num = float(value)
+                return str(int(num)) if num.is_integer() else value
+        return ""
 
     def expand_row(row: ET.Element) -> list[str]:
         out: list[str] = []

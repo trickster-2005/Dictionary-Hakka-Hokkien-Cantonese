@@ -74,6 +74,9 @@ export function EntryCard({ entry, favorited, onToggleFavorite, showLangLabel, o
               {ex.exampleText}
               {ex.audioUrl && <PlayButton src={ex.audioUrl} label="播放例句發音" />}
             </p>
+            {ex.exampleRomanization && (
+              <p className="example-block__romanization">{ex.exampleRomanization}</p>
+            )}
             {ex.exampleTranslationZh && (
               <p className="example-block__translation">{ex.exampleTranslationZh}</p>
             )}

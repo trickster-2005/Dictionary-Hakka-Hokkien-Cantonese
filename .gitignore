@@ -20,6 +20,10 @@ __pycache__/
 # see README.md)
 /data/raw/
 /public/dictionary.sqlite
+# raw MOE Taiwanese download (kautian.ods already copied into data/raw/) —
+# the word-mp3/sentence-mp3 audio here is ~790MB, deliberately not wired
+# into the ETL yet, see IMPLEMENTATION_NOTES.md
+/Hokkien/
 .env
 
 # Editor directories and files

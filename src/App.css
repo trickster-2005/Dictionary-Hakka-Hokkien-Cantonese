@@ -441,6 +441,12 @@
   gap: 6px;
 }
 
+.example-block__romanization {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .example-block__translation {
   margin: 4px 0 0;
   color: var(--text-muted);
