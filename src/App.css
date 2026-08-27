@@ -444,10 +444,28 @@
 
 .modal-panel {
   position: relative;
-  width: 100%;
-  max-width: 560px;
+  width: 60vw;
   max-height: 85vh;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.modal-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-panel::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+.modal-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 .modal-panel .entry-card {
