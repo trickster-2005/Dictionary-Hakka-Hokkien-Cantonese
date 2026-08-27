@@ -24,6 +24,7 @@ third-party dependency):
 """
 import re
 from pathlib import Path
+from urllib.parse import quote
 
 from _common import read_ods_rows
 
@@ -34,7 +35,11 @@ LICENSE_NOTE = (
     "辭典本文著作權為教育部所有,依創用CC 姓名標示-禁止改作 3.0 台灣授權條款釋出;"
     "本站僅重新排版供查詢使用,未更動釋義文字。"
 )
-SOURCE_URL = "https://hakkadict.moe.edu.tw/"
+# hakkadict.moe.edu.tw's own search is POST/session-based and ignores a GET
+# query string on /search_list/ — but its homepage reads ?keyword= and
+# pre-fills the search box (confirmed by loading the page and reading the
+# input's value), without auto-submitting. So this at least saves the user
+# from re-typing the word; they still need one click on "檢索" themselves.
 
 ACCENT_COLUMNS = {"hailu": "海陸腔音讀", "sixian": "四縣腔音讀"}
 
@@ -113,7 +118,7 @@ def parse():
                 "definition": definition,
                 "register_tag": pos,
                 "source_name": SOURCE_NAME,
-                "source_url": SOURCE_URL,
+                "source_url": f"https://hakkadict.moe.edu.tw/?keyword={quote(headword)}",
                 "license_note": LICENSE_NOTE,
                 "aliases": near_synonyms,
                 "strong_aliases": mandarin,

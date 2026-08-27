@@ -357,14 +357,24 @@
 }
 
 .entry-card__body--clamped {
-  position: relative;
   max-height: 340px; /* ~20 lines total per card once the header/tag/links
     chrome above and below are counted in */
-  overflow: hidden;
+  overflow: hidden; /* avoids a one-frame flash of full content before the
+    ResizeObserver below has measured and decided whether to allow scroll */
 }
 
-.entry-card__body--clamped::after {
-  content: '';
+/* Only entries that actually exceed the cap get a scrollbar — short cards
+   stay static with no clipping, no fade, nothing to hint at. */
+.entry-card__body-wrap--overflowing {
+  position: relative;
+}
+
+.entry-card__body-wrap--overflowing .entry-card__body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.entry-card__body-fade {
   position: absolute;
   left: 0;
   right: 0;
