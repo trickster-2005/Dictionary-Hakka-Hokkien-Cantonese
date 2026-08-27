@@ -260,6 +260,25 @@
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .lang-column__cards::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .lang-column__cards::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .lang-column__cards::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+  }
+
+  .lang-column__cards::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
   }
 
   .lang-column__cards > .entry-card {
@@ -372,6 +391,25 @@
 .entry-card__body-wrap--overflowing .entry-card__body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.entry-card__body-wrap--overflowing .entry-card__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.entry-card__body-wrap--overflowing .entry-card__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.entry-card__body-wrap--overflowing .entry-card__body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+.entry-card__body-wrap--overflowing .entry-card__body::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 .entry-card__body-fade {
