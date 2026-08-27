@@ -45,17 +45,41 @@ SIM_RE = re.compile(r"\(sim:([^)]*)\)")
 # High-confidence enough to treat as a strong (transitively-linked) synonym.
 HASH_REF_RE = re.compile(r"^#([^；;、,，。]+)")
 
-# "即係" ("that is/means") followed by one or more #-linked cross-references
-# appearing *anywhere* in the explanation, not just at the very start — e.g.
-# 薪水's "即係#人工 或者#糧" or 做瓜's "...即係#瓜老襯，即係#死" (two separate
-# matches). Everything after the first #word must still be another #word
-# (optionally joined by 或/或者/、) for the chain to keep extending — real
-# punctuation (，。；) ends it, same confidence level as HASH_REF_RE since
-# it's still words.hk's own editor-placed cross-reference, just not
-# positioned at the start of the text. No recursion into the linked entry's
-# own text — just what's already sitting in this row's own content.
-JIHAI_RE = re.compile(r"即係(?:\s*(?:或者|或|、)?\s*#[^\s#，。；！？、]+)+")
-HASH_TOKEN_RE = re.compile(r"#([^\s#，。；！？、]+)")
+# "即係" ("that is/means") directly followed by exactly one #-linked
+# cross-reference, appearing *anywhere* in the explanation, not just at the
+# very start — e.g. 他們's "即係#佢哋" or 乞丐's "即係#乞兒". Two constraints,
+# both found necessary by checking real matches against the full CSV rather
+# than a handful of hand-picked examples:
+#   - Only one word, not a chain: 打卡's "即係#剪#頭髮" is a single compound
+#     phrase assembled from two hyperlinked morphemes ("cut" + "hair"), not
+#     two separate synonyms of 打卡 — an earlier version that chained
+#     consecutive #words (with an optional 或/或者/、 between them) split
+#     phrases like this into bogus glosses. 薪水's genuine two-way
+#     "即係#人工 或者#糧" is an accepted casualty of dropping this — telling
+#     "compound phrase" and "list of alternatives" apart isn't reliable from
+#     the punctuation alone, so the safe rule is just one word.
+#   - The clause must end right after that word (only trailing whitespace
+#     before a real terminator: ，。；！？） or end of string) — 猶太's
+#     "同#猶太人 有關" or 外圍賽's antonym-flavoured "分成外圍賽同#決賽週"
+#     would otherwise match "猶太人"/"決賽週" as if they were declared
+#     equal, when the text is actually saying "related to X" or listing two
+#     *different* things.
+# No recursion into the linked entry's own text — just what's already
+# sitting in this row's own content.
+#
+# "同" ("same as") was considered as a second trigger alongside "即係" but
+# rejected after sampling real matches: even with both constraints
+# above, roughly half of "同#X" matches in the actual data are false
+# positives (唱片 "同#光碟" — record and CD just happen to share a measure
+# word; 外圍賽 "同#決賽週" — qualifiers and finals are different, contrasted
+# stages, not synonyms; 北歐 "同#丹麥" — Denmark is one country *within*
+# Northern Europe, not a synonym of it; 人馬 "同#馬" — 人馬 is "people and
+# horses"/troops, not literally "horse"). "同" is too grammatically
+# overloaded in Cantonese (and/with/related-to/compared-to/same-as) for
+# pattern matching alone to tell the "same as" sense apart from the rest;
+# "即係" doesn't have that ambiguity, which is why matches sampled against
+# it were uniformly clean.
+JIHAI_RE = re.compile(r"即係#([^\s#，。；！？、）)]+)(?=\s*(?:[，。；！？）)]|$))")
 
 
 def _split_headword_field(field: str):
@@ -158,8 +182,7 @@ def _parse_content(content: str, headword: str):
         glosses.extend(extract_glosses(zho.lstrip("#"), headword))
 
     for part in definition_parts:
-        for jihai_match in JIHAI_RE.finditer(part):
-            strong_aliases.extend(HASH_TOKEN_RE.findall(jihai_match.group(0)))
+        strong_aliases.extend(JIHAI_RE.findall(part))
 
     strong_aliases = [a for a in dict.fromkeys(strong_aliases) if a and a != headword]
     return register_tag, definition, examples, glosses, strong_aliases
