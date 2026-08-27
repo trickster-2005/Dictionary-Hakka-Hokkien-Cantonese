@@ -53,35 +53,54 @@ def build():
 
     all_rows = yue_rows + nan_rows + hak_rows
 
-    # Curated synonym signals (Cantonese sim:/#, Taiwanese synonyms) link
-    # entries transitively: if A ~ C and B ~ C, A and B become mutually
-    # findable even though neither mentions the other directly. Restricted to
-    # these "strong" edges only — generic short-gloss aliases stay direct-only
-    # so a common word like "吃" doesn't pull unrelated entries together.
-    uf = UnionFind()
-    for row in all_rows:
-        for strong in row.get("strong_aliases", []):
-            uf.union(row["headword"], strong)
+    # Curated synonym signals (Cantonese sim:/#, Taiwanese synonyms, Hakka
+    # 對應國語/近義詞) link entries transitively: if A ~ C and B ~ C, A and B
+    # become mutually findable even though neither mentions the other
+    # directly. Restricted to these "strong" edges only — generic short-gloss
+    # aliases stay direct-only so a common word like "吃" doesn't pull
+    # unrelated entries together.
+    #
+    # Each language gets its own independent UnionFind — a Taiwanese cross-
+    # reference should never pull in a Cantonese or Hakka entry (each
+    # dictionary's own synonym signal reflects only how *that* language's
+    # editors cross-referenced their own entries; treating the three as one
+    # combined graph produced results like 牽手 (Taiwanese for "wife") dragging
+    # in unrelated Cantonese 老婆/太太/妻子 cards). This also means a headword
+    # spelled the same way in two languages for two unrelated senses (e.g.
+    # Hakka 牽手 "hold hands" vs Taiwanese 牽手 "wife") can no longer merge into
+    # one cluster just because the text happens to match.
+    def build_clusters(rows: list[dict]) -> tuple[UnionFind, dict[str, set[str]]]:
+        uf = UnionFind()
+        for row in rows:
+            for strong in row.get("strong_aliases", []):
+                uf.union(row["headword"], strong)
+        component_members: dict[str, set[str]] = {}
+        for row in rows:
+            component_members.setdefault(uf.find(row["headword"]), set()).add(row["headword"])
+            for strong in row.get("strong_aliases", []):
+                component_members.setdefault(uf.find(strong), set()).add(strong)
+        return uf, component_members
 
-    component_members: dict[str, set[str]] = {}
-    for row in all_rows:
-        component_members.setdefault(uf.find(row["headword"]), set()).add(row["headword"])
-        for strong in row.get("strong_aliases", []):
-            component_members.setdefault(uf.find(strong), set()).add(strong)
+    clusters_by_lang = {
+        "yue": build_clusters(yue_rows),
+        "nan": build_clusters(nan_rows),
+        "hak": build_clusters(hak_rows),
+    }
 
     # A handful of polysemous hub words (e.g. "金" — gold/money/a surname/...)
     # chain unrelated senses together transitively until the component covers
-    # dozens of unconnected concepts. An earlier cap of 8 was picked without
-    # actually inspecting mid-size components, and turned out to wrongly
-    # nuke perfectly good clusters too — e.g. 阿爸/爸爸/老豆/老竇/父親/... (the
-    # Hakka+Cantonese "dad" vocabulary) is a coherent 10-member component that
-    # a cap of 8 was silently discarding. Manually inspected the actual
-    # size distribution instead: components up to ~70 members are still
-    # topically coherent (checked several by hand — "death", "lying/bragging",
-    # "face/immediately", "comparison words" clusters all check out), while
-    # the only two outliers above that (184, 297 members) are genuine
-    # grab-bags of unrelated senses chained through promiscuous hub
-    # characters. 80 sits cleanly between the two.
+    # dozens of unconnected concepts within one language. An earlier cap of 8
+    # was picked without actually inspecting mid-size components, and turned
+    # out to wrongly nuke perfectly good clusters too. Manually inspected the
+    # actual size distribution instead: components up to ~70 members are
+    # still topically coherent (checked several by hand — "death",
+    # "lying/bragging", "face/immediately", "comparison words" clusters all
+    # check out), while outliers above that are genuine grab-bags of
+    # unrelated senses chained through promiscuous hub characters. 80 sits
+    # cleanly between the two. (Calibrated back when clustering was combined
+    # across all three languages — components are smaller now that each
+    # language is independent, so this cap triggers less often, but the same
+    # single-language hub-word risk it guards against still applies.)
     MAX_COMPONENT_SIZE = 80
 
     def expanded_aliases(row: dict) -> list[tuple[str, str]]:
@@ -89,17 +108,23 @@ def build():
         # it's the more curated signal, so if a word shows up both as a
         # generic short gloss AND a dictionary-tagged synonym, tag it synonym.
         kind_by_alias = {a: "gloss" for a in row.get("aliases", [])}
-        members = component_members.get(uf.find(row["headword"]), set())
-        if len(members) <= MAX_COMPONENT_SIZE:
-            for a in members - {row["headword"]}:
-                kind_by_alias[a] = "synonym"
+        # Only a row that itself contributed a strong alias gets to inherit
+        # the cluster — otherwise a same-spelled-but-unrelated row elsewhere
+        # in the same language would drag this one in by text collision alone.
+        if row.get("strong_aliases"):
+            uf, component_members = clusters_by_lang[row["lang"]]
+            members = component_members.get(uf.find(row["headword"]), set())
+            if len(members) <= MAX_COMPONENT_SIZE:
+                for a in members - {row["headword"]}:
+                    kind_by_alias[a] = "synonym"
         return sorted(kind_by_alias.items())
 
     n_strong_edges = sum(len(r.get("strong_aliases", [])) for r in all_rows)
-    n_capped = sum(1 for m in component_members.values() if len(m) > MAX_COMPONENT_SIZE)
+    all_component_members = [m for _, cm in clusters_by_lang.values() for m in cm.values()]
+    n_capped = sum(1 for m in all_component_members if len(m) > MAX_COMPONENT_SIZE)
     print(
-        f"  {n_strong_edges} strong synonym edges -> {len(component_members)} components "
-        f"({n_capped} over size {MAX_COMPONENT_SIZE}, capped to direct-only)"
+        f"  {n_strong_edges} strong synonym edges -> {len(all_component_members)} components "
+        f"(per-language, {n_capped} over size {MAX_COMPONENT_SIZE}, capped to direct-only)"
     )
 
     for row in all_rows:
