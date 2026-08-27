@@ -69,17 +69,30 @@ def build():
     # spelled the same way in two languages for two unrelated senses (e.g.
     # Hakka 牽手 "hold hands" vs Taiwanese 牽手 "wife") can no longer merge into
     # one cluster just because the text happens to match.
-    def build_clusters(rows: list[dict]) -> tuple[UnionFind, dict[str, set[str]]]:
+    def build_clusters(rows: list[dict]) -> tuple[UnionFind, dict[str, set[str]], set[str]]:
         uf = UnionFind()
         for row in rows:
             for strong in row.get("strong_aliases", []):
                 uf.union(row["headword"], strong)
         component_members: dict[str, set[str]] = {}
+        # A headword only "really" belongs to its component if it's on one
+        # end of an actual edge — either it contributed a strong_alias itself
+        # (source), or some other row's strong_alias points at it (target,
+        # e.g. 他們's "即係#佢哋" makes 佢哋 a target even though 佢哋's own
+        # entry has no synonym data of its own). Two rows that only share a
+        # component root because uf.find() happened to land them there via
+        # someone else's edges — not because either is actually one of that
+        # edge's two ends — don't count (that's the 1.15 牽手 case).
+        referenced: set[str] = set()
         for row in rows:
             component_members.setdefault(uf.find(row["headword"]), set()).add(row["headword"])
-            for strong in row.get("strong_aliases", []):
+            strongs = row.get("strong_aliases", [])
+            if strongs:
+                referenced.add(row["headword"])
+                referenced.update(strongs)
+            for strong in strongs:
                 component_members.setdefault(uf.find(strong), set()).add(strong)
-        return uf, component_members
+        return uf, component_members, referenced
 
     clusters_by_lang = {
         "yue": build_clusters(yue_rows),
@@ -108,11 +121,12 @@ def build():
         # it's the more curated signal, so if a word shows up both as a
         # generic short gloss AND a dictionary-tagged synonym, tag it synonym.
         kind_by_alias = {a: "gloss" for a in row.get("aliases", [])}
-        # Only a row that itself contributed a strong alias gets to inherit
-        # the cluster — otherwise a same-spelled-but-unrelated row elsewhere
-        # in the same language would drag this one in by text collision alone.
-        if row.get("strong_aliases"):
-            uf, component_members = clusters_by_lang[row["lang"]]
+        # Only a row genuinely on one end of a strong-alias edge (source or
+        # target) gets to inherit the cluster — otherwise a same-spelled-but-
+        # unrelated row elsewhere in the same language would drag this one in
+        # by text collision alone.
+        uf, component_members, referenced = clusters_by_lang[row["lang"]]
+        if row["headword"] in referenced:
             members = component_members.get(uf.find(row["headword"]), set())
             if len(members) <= MAX_COMPONENT_SIZE:
                 for a in members - {row["headword"]}:
@@ -120,7 +134,7 @@ def build():
         return sorted(kind_by_alias.items())
 
     n_strong_edges = sum(len(r.get("strong_aliases", [])) for r in all_rows)
-    all_component_members = [m for _, cm in clusters_by_lang.values() for m in cm.values()]
+    all_component_members = [m for _, cm, _ in clusters_by_lang.values() for m in cm.values()]
     n_capped = sum(1 for m in all_component_members if len(m) > MAX_COMPONENT_SIZE)
     print(
         f"  {n_strong_edges} strong synonym edges -> {len(all_component_members)} components "
