@@ -1,6 +1,8 @@
-"""Downloads the g0v-processed MOE dictionary JSON dumps used by parse_nan.py
-and parse_hak.py. Safe to re-run — skips files already present unless force=True.
+"""Downloads the g0v-processed MOE dictionary source files used by
+parse_nan.py and parse_hak.py. Safe to re-run — skips files already present
+unless force=True.
 """
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -8,7 +10,13 @@ RAW_DIR = Path(__file__).resolve().parent.parent / "raw"
 
 SOURCES = {
     "dict-twblg.json": "https://raw.githubusercontent.com/g0v/moedict-data-twblg/master/dict-twblg.json",
-    "dict-hakka.json": "https://raw.githubusercontent.com/g0v/moedict-data-hakka/master/dict-hakka.json",
+    # The raw spreadsheet, not moedict-data-hakka's dict-hakka.json: it has
+    # 對應國語/近義詞 columns (and plain-text 調值 pronunciation for all six
+    # accents) that never made it into that repo's JSON conversion.
+    "客語典文字資料.ods": (
+        "https://raw.githubusercontent.com/g0v/moedict-data-hakka/master/ods/"
+        + urllib.parse.quote("客語典文字資料.ods")
+    ),
 }
 
 

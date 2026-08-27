@@ -71,20 +71,29 @@ def build():
 
     # A handful of polysemous hub words (e.g. "金" — gold/money/a surname/...)
     # chain unrelated senses together transitively until the component covers
-    # dozens of unconnected concepts (confirmed empirically: 27778 components,
-    # only 103 exceed size 8, but those 103 are genuinely garbage — "金"
-    # dragged in "水", "説謊", "季節"...). Cap membership size so those collapse
-    # back to direct-only aliases instead of polluting search results, while
-    # the ~99.6% of components that stay small (the 抽煙/食煙/吸煙 case this
-    # was built for) keep the transitive expansion.
-    MAX_COMPONENT_SIZE = 8
+    # dozens of unconnected concepts. An earlier cap of 8 was picked without
+    # actually inspecting mid-size components, and turned out to wrongly
+    # nuke perfectly good clusters too — e.g. 阿爸/爸爸/老豆/老竇/父親/... (the
+    # Hakka+Cantonese "dad" vocabulary) is a coherent 10-member component that
+    # a cap of 8 was silently discarding. Manually inspected the actual
+    # size distribution instead: components up to ~70 members are still
+    # topically coherent (checked several by hand — "death", "lying/bragging",
+    # "face/immediately", "comparison words" clusters all check out), while
+    # the only two outliers above that (184, 297 members) are genuine
+    # grab-bags of unrelated senses chained through promiscuous hub
+    # characters. 80 sits cleanly between the two.
+    MAX_COMPONENT_SIZE = 80
 
-    def expanded_aliases(row: dict) -> list[str]:
-        direct = set(row.get("aliases", []))
+    def expanded_aliases(row: dict) -> list[tuple[str, str]]:
+        # 'synonym' wins over 'gloss' when both point at the same string —
+        # it's the more curated signal, so if a word shows up both as a
+        # generic short gloss AND a dictionary-tagged synonym, tag it synonym.
+        kind_by_alias = {a: "gloss" for a in row.get("aliases", [])}
         members = component_members.get(uf.find(row["headword"]), set())
         if len(members) <= MAX_COMPONENT_SIZE:
-            direct |= members - {row["headword"]}
-        return sorted(direct)
+            for a in members - {row["headword"]}:
+                kind_by_alias[a] = "synonym"
+        return sorted(kind_by_alias.items())
 
     n_strong_edges = sum(len(r.get("strong_aliases", [])) for r in all_rows)
     n_capped = sum(1 for m in component_members.values() if len(m) > MAX_COMPONENT_SIZE)
@@ -126,10 +135,10 @@ def build():
                 "INSERT INTO word_audio (entry_id, audio_url) VALUES (?, ?)",
                 (entry_id, a["audio_url"]),
             )
-        for alias in expanded_aliases(row):
+        for alias, kind in expanded_aliases(row):
             conn.execute(
-                "INSERT INTO aliases (entry_id, alias) VALUES (?, ?)",
-                (entry_id, alias),
+                "INSERT INTO aliases (entry_id, alias, kind) VALUES (?, ?, ?)",
+                (entry_id, alias, kind),
             )
 
     conn.commit()

@@ -9,8 +9,13 @@ The content column uses a small markup:
     yue:... (example sentence, jyutping usually inline in parens)
     eng:... (English translation)
 
-Only rows with status == 'OK' and visibility == '已公開' are kept — the export
-is roughly half unreviewed / unpublished community submissions.
+Only rows with status == 'OK' are kept (excludes entries flagged "未經覆核，
+可能有錯漏" / unreviewed-may-contain-errors). The CSV's separate 已公開/未公開
+column looked like a "is this live on the site" flag but isn't — plenty of
+completely ordinary, clearly-published words (嗅, 坦克, 地質, 六四...) are
+marked 未公開, so filtering on it was silently dropping ~72% of otherwise-fine
+entries. Confirmed by the user noticing 六四 (which *is* on the live site)
+couldn't be found here.
 
 words.hk content is "ALL RIGHTS RESERVED. DO NOT DISTRIBUTE" per the CSV's own
 header comment — see data/etl/README.md. This script only ever reads the local
@@ -78,7 +83,13 @@ def _parse_content(content: str, headword: str):
     definition_parts = []
     zho_parts = []
     examples = []
-    section = None
+    # Most entries open with an explicit <explanation> tag, but some (e.g.
+    # "六四") put a first yue:/eng: pair directly after the (pos:...) header,
+    # then "----", *then* <explanation> for a second sense — with section
+    # starting at None, that first line has nowhere to land and silently
+    # vanishes. Starting in "explanation" mode already fixes that; the
+    # explicit tag (when present) is then just a harmless no-op re-set.
+    section = "explanation"
     current_eg = {}
 
     for raw_line in lines[1:]:
@@ -145,8 +156,8 @@ def parse():
         for row in reader:
             if len(row) != 6:
                 continue
-            _id, headword_field, content, _blank, status, visibility = row
-            if status != "OK" or visibility != "已公開":
+            _id, headword_field, content, _blank, status, _visibility = row
+            if status != "OK":
                 continue
 
             variants = _split_headword_field(headword_field)

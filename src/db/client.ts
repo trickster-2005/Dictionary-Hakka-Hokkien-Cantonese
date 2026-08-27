@@ -18,6 +18,20 @@ function registerWeight(tag: string | null): number {
   return 1
 }
 
+/** 台語: rank by which field matched — 詞目(headword) > 近義詞(synonym field)
+ * > 解釋(gloss extracted from the definition). 客語: 詞目 > 對應華語(tagged
+ * 'synonym' in parse_hak.py) > 相似詞(tagged 'gloss'). 粵語 is deliberately
+ * left on the simpler direct-vs-alias distinction. */
+function computeMatchRank(lang: LangCode, mHeadword: boolean, mSynonym: boolean, mGloss: boolean): number {
+  if (mHeadword) return 0
+  if (lang === 'nan' || lang === 'hak') {
+    if (mSynonym) return 1
+    if (mGloss) return 2
+    return 3
+  }
+  return 1 // yue: any alias match, regardless of kind
+}
+
 function expandQueryVariants(query: string): string[] {
   let variants = new Set([query])
   for (const [a, b] of VARIANT_PAIRS) {
@@ -29,6 +43,33 @@ function expandQueryVariants(query: string): string[] {
     variants = next
   }
   return Array.from(variants)
+}
+
+/** Stable-enough identity for favoriting one specific card (not the whole
+ * searched term) — survives a dictionary.sqlite rebuild as long as the
+ * entry's own script/pronunciation don't change, unlike the internal
+ * auto-increment `id` which reshuffles on every rebuild. */
+export function entryKey(entry: Entry): string {
+  return [entry.lang, entry.variant ?? '', entry.script, entry.pronunciation1 ?? ''].join('|')
+}
+
+function rowToEntry(row: Record<string, string | number | null>, examples: Example[], audio: WordAudio[]): Entry {
+  return {
+    id: row.id as number,
+    zhTermId: row.zh_term_id as number,
+    lang: row.lang as LangCode,
+    variant: (row.variant as HakkaVariant | null) ?? null,
+    script: row.script as string,
+    pronunciation1: row.pronunciation_1 as string | null,
+    pronunciation2: row.pronunciation_2 as string | null,
+    definition: row.definition as string | null,
+    registerTag: row.register_tag as string | null,
+    sourceName: row.source_name as string,
+    sourceUrl: row.source_url as string,
+    licenseNote: row.license_note as string,
+    examples,
+    audio,
+  }
 }
 
 export class DictionaryClient {
@@ -71,7 +112,11 @@ export class DictionaryClient {
     const stmt = this.db.prepare(
       `SELECT DISTINCT e.*,
          CASE WHEN e.zh_term_id IN (SELECT id FROM zh_terms WHERE headword IN (${placeholders}))
-              THEN 0 ELSE 1 END AS match_rank
+              THEN 1 ELSE 0 END AS m_headword,
+         CASE WHEN e.id IN (SELECT entry_id FROM aliases WHERE kind = 'synonym' AND alias IN (${placeholders}))
+              THEN 1 ELSE 0 END AS m_synonym,
+         CASE WHEN e.id IN (SELECT entry_id FROM aliases WHERE kind = 'gloss' AND alias IN (${placeholders}))
+              THEN 1 ELSE 0 END AS m_gloss
        FROM entries e
        WHERE e.lang = ? AND (e.lang != 'hak' OR e.variant = ?)
        AND (
@@ -80,29 +125,17 @@ export class DictionaryClient {
        )
        ORDER BY e.id`,
     )
-    stmt.bind([...variants, lang, hakkaVariant, ...variants, ...variants])
+    stmt.bind([...variants, ...variants, ...variants, lang, hakkaVariant, ...variants, ...variants])
     const entries: Entry[] = []
     const matchRanks: number[] = []
     while (stmt.step()) {
       const row = stmt.getAsObject() as Record<string, string | number | null>
       const entryId = row.id as number
-      entries.push({
-        id: entryId,
-        zhTermId: row.zh_term_id as number,
-        lang: row.lang as LangCode,
-        variant: (row.variant as HakkaVariant | null) ?? null,
-        script: row.script as string,
-        pronunciation1: row.pronunciation_1 as string | null,
-        pronunciation2: row.pronunciation_2 as string | null,
-        definition: row.definition as string | null,
-        registerTag: row.register_tag as string | null,
-        sourceName: row.source_name as string,
-        sourceUrl: row.source_url as string,
-        licenseNote: row.license_note as string,
-        examples: this.getExamples(entryId),
-        audio: this.getAudio(entryId),
-      })
-      matchRanks.push(row.match_rank as number)
+      const entry = rowToEntry(row, this.getExamples(entryId), this.getAudio(entryId))
+      entries.push(entry)
+      matchRanks.push(
+        computeMatchRank(entry.lang, row.m_headword === 1, row.m_synonym === 1, row.m_gloss === 1),
+      )
     }
     stmt.free()
 
@@ -113,6 +146,33 @@ export class DictionaryClient {
       return registerWeight(entries[i].registerTag) - registerWeight(entries[j].registerTag)
     })
     return order.map((i) => entries[i])
+  }
+
+  /** Looks up one specific favorited card by the key from entryKey(). Returns
+   * null if it no longer exists (e.g. dropped in a later dictionary.sqlite
+   * rebuild) — callers should treat that as "quietly skip", not an error. */
+  getEntryByKey(key: string): Entry | null {
+    const parts = key.split('|')
+    // guards against stale localStorage favorites saved under an older key
+    // format (e.g. a plain search term, from before favorites were per-card)
+    if (parts.length !== 4) return null
+    const [lang, variant, script, pronunciation1] = parts
+    const stmt = this.db.prepare(
+      `SELECT * FROM entries
+       WHERE lang = ? AND COALESCE(variant, '') = ? AND script = ? AND COALESCE(pronunciation_1, '') = ?
+       LIMIT 1`,
+    )
+    stmt.bind([lang, variant, script, pronunciation1])
+    const found = stmt.step()
+    if (!found) {
+      stmt.free()
+      return null
+    }
+    const row = stmt.getAsObject() as Record<string, string | number | null>
+    const entryId = row.id as number
+    const entry = rowToEntry(row, this.getExamples(entryId), this.getAudio(entryId))
+    stmt.free()
+    return entry
   }
 
   private getExamples(entryId: number): Example[] {

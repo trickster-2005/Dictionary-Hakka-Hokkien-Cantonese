@@ -39,7 +39,8 @@ CREATE TABLE word_audio (
 CREATE TABLE aliases (
   id INTEGER PRIMARY KEY,
   entry_id INTEGER NOT NULL REFERENCES entries(id),
-  alias TEXT NOT NULL
+  alias TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'gloss'  -- 'synonym' (curated sim:/synonyms field) | 'gloss' (extracted from definition text)
 );
 
 CREATE INDEX idx_entries_zh_term ON entries(zh_term_id, lang);
