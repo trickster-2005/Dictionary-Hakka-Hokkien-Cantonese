@@ -93,7 +93,12 @@ function App() {
 
       <SearchHistoryChips history={history} onSelect={runSearch} onClear={clearHistory} />
 
-      {status === 'loading' && <p className="status-msg">資料庫載入中…</p>}
+      {status === 'loading' && (
+        <div className="loading-state">
+          <span className="spinner" aria-hidden="true" />
+          <p className="status-msg">資料庫載入中…</p>
+        </div>
+      )}
       {status === 'error' && <p className="status-msg">資料庫載入失敗,請重新整理再試一次。</p>}
 
       {status === 'ready' && db && showFavorites && (
