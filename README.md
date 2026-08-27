@@ -42,9 +42,10 @@ cp node_modules/sql.js/dist/sql-wasm-browser.wasm public/sql-wasm-browser.wasm
 | 台語 | 詞目 | 近義詞 | 從釋義抽出的短華語對譯詞 |
 | 客語 | 詞目 | 對應國語 | 近義詞 |
 
-近義詞之間還會做跨詞條、甚至跨語言的同義詞鏈展開（例如查「爸爸」能連到粵語的
-「老豆／老竇」），但為避免少數多義字把不相干的詞全部串在一起，分組人數設有上限。
-完整規則與判斷依據見 [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md)。
+近義詞之間還會做跨詞條的同義詞鏈展開（例如查「抽煙」能經由「抽煙→吸煙→食煙」連到
+「食煙」），但只在**同一語言內**展開——粵語、台語、客語各自獨立分組，不會互相牽連，
+且為避免少數多義字把不相干的詞全部串在一起，分組人數設有上限。完整規則與判斷依據見
+[IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md)。
 
 ## 資料授權
 
