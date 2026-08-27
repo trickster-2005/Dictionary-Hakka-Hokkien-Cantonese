@@ -271,6 +271,11 @@
     max-width: 340px;
     scroll-snap-align: start;
   }
+
+  .lang-column__header {
+    justify-content: flex-start;
+    gap: 10px;
+  }
 }
 
 /* One card per matching entry — a language can show several, stacked, when
