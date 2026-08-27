@@ -244,6 +244,31 @@
   font-size: 14px;
 }
 
+.lang-column__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Below the 3-column breakpoint, languages stack vertically — a language
+   with many matching cards would otherwise push the next language far down
+   the page, so each language's own cards scroll horizontally instead. */
+@media (max-width: 860px) {
+  .lang-column__cards {
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+
+  .lang-column__cards > .entry-card {
+    flex: 0 0 85%;
+    max-width: 340px;
+    scroll-snap-align: start;
+  }
+}
+
 /* One card per matching entry — a language can show several, stacked, when
    more than one dialect word is relevant to the searched term. */
 .entry-card {

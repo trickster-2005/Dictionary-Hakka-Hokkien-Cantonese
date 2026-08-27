@@ -33,15 +33,19 @@ export function LanguageCard({
 
       {entries.length === 0 && <p className="lang-card__placeholder">查無資料。</p>}
 
-      {entries.map((entry) => (
-        <EntryCard
-          key={entry.id}
-          entry={entry}
-          favorited={isFavorite(entry)}
-          onToggleFavorite={() => onToggleFavorite(entry)}
-          onOpenDetail={onOpenDetail}
-        />
-      ))}
+      {entries.length > 0 && (
+        <div className="lang-column__cards">
+          {entries.map((entry) => (
+            <EntryCard
+              key={entry.id}
+              entry={entry}
+              favorited={isFavorite(entry)}
+              onToggleFavorite={() => onToggleFavorite(entry)}
+              onOpenDetail={onOpenDetail}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
