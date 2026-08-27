@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SearchBox } from './components/SearchBox'
 import { SearchHistoryChips } from './components/SearchHistoryChips'
 import { TermResult } from './components/TermResult'
-import { EntryCard } from './components/EntryCard'
+import { LanguageCard } from './components/LanguageCard'
 import { EntryModal } from './components/EntryModal'
 import { ThemeToggle } from './components/ThemeToggle'
 import { Footer } from './components/Footer'
@@ -10,7 +10,7 @@ import { useFavorites } from './hooks/useFavorites'
 import { useHakkaVariant } from './hooks/useHakkaVariant'
 import { useSearchHistory } from './hooks/useSearchHistory'
 import { useDictionary, entryKey } from './db/client'
-import { LANG_LABELS, LANG_ORDER } from './constants'
+import { LANG_ORDER } from './constants'
 import type { Entry, LangCode } from './types'
 import './App.css'
 
@@ -97,28 +97,23 @@ function App() {
       {status === 'error' && <p className="status-msg">資料庫載入失敗,請重新整理再試一次。</p>}
 
       {status === 'ready' && db && showFavorites && (
-        <div className="favorites-list">
-          {LANG_ORDER.map((lang) => (
-            <section key={lang} className="favorites-section">
-              <h2 className="favorites-section__title">{LANG_LABELS[lang]}</h2>
-              {favoritesByLang[lang].length === 0 ? (
-                <p className="status-msg">尚無收藏。</p>
-              ) : (
-                <div className="favorites-grid">
-                  {favoritesByLang[lang].map((entry) => (
-                    <EntryCard
-                      key={entryKey(entry)}
-                      entry={entry}
-                      favorited
-                      onToggleFavorite={() => toggleEntryFavorite(entry)}
-                      onOpenDetail={setModalEntry}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
-        </div>
+        <section className="term-block">
+          <div className="card-row">
+            {LANG_ORDER.map((lang) => (
+              <LanguageCard
+                key={lang}
+                lang={lang}
+                entries={favoritesByLang[lang]}
+                hakkaVariant={variant}
+                onHakkaVariantChange={setVariant}
+                isFavorite={isEntryFavorite}
+                onToggleFavorite={toggleEntryFavorite}
+                onOpenDetail={setModalEntry}
+                emptyMessage="尚無收藏。"
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {status === 'ready' && db && !showFavorites && searched !== null && (

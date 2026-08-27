@@ -62,23 +62,23 @@ export function EntryCard({ entry, favorited, onToggleFavorite, showLangLabel, o
       )}
       {entry.registerTag && <span className="tag">{entry.registerTag}</span>}
 
-      <div className={`entry-card__body-wrap${overflowing ? ' entry-card__body-wrap--overflowing' : ''}`}>
-        <div ref={bodyRef} className={`entry-card__body${clickable ? ' entry-card__body--clamped' : ''}`}>
-          {entry.definition && <p className="entry-card__definition">{entry.definition}</p>}
+      <div
+        ref={bodyRef}
+        className={`entry-card__body${clickable ? ' entry-card__body--clamped' : ''}${overflowing ? ' entry-card__body--overflowing' : ''}`}
+      >
+        {entry.definition && <p className="entry-card__definition">{entry.definition}</p>}
 
-          {entry.examples.map((ex) => (
-            <div key={ex.id} className="example-block">
-              <p className="example-block__text">
-                {ex.exampleText}
-                {ex.audioUrl && <PlayButton src={ex.audioUrl} label="播放例句發音" />}
-              </p>
-              {ex.exampleTranslationZh && (
-                <p className="example-block__translation">{ex.exampleTranslationZh}</p>
-              )}
-            </div>
-          ))}
-        </div>
-        {overflowing && <div className="entry-card__body-fade" aria-hidden="true" />}
+        {entry.examples.map((ex) => (
+          <div key={ex.id} className="example-block">
+            <p className="example-block__text">
+              {ex.exampleText}
+              {ex.audioUrl && <PlayButton src={ex.audioUrl} label="播放例句發音" />}
+            </p>
+            {ex.exampleTranslationZh && (
+              <p className="example-block__translation">{ex.exampleTranslationZh}</p>
+            )}
+          </div>
+        ))}
       </div>
 
       <div className="source-links">

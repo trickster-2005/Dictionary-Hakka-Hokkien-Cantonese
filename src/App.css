@@ -129,15 +129,6 @@
   white-space: nowrap;
 }
 
-.favorites-section {
-  margin-bottom: 32px;
-}
-
-.favorites-section__title {
-  font-size: 18px;
-  margin: 0 0 12px;
-}
-
 .status-msg {
   color: var(--text-muted);
   padding: 24px 0;
@@ -181,12 +172,6 @@
 .favorite-star--active {
   color: #b3475a;
   opacity: 0.8;
-}
-
-.favorites-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
 }
 
 .card-row {
@@ -383,43 +368,29 @@
 }
 
 /* Only entries that actually exceed the cap get a scrollbar — short cards
-   stay static with no clipping, no fade, nothing to hint at. */
-.entry-card__body-wrap--overflowing {
-  position: relative;
-}
-
-.entry-card__body-wrap--overflowing .entry-card__body {
+   stay static, nothing to hint at. */
+.entry-card__body--overflowing {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
 
-.entry-card__body-wrap--overflowing .entry-card__body::-webkit-scrollbar {
+.entry-card__body--overflowing::-webkit-scrollbar {
   width: 6px;
 }
 
-.entry-card__body-wrap--overflowing .entry-card__body::-webkit-scrollbar-track {
+.entry-card__body--overflowing::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.entry-card__body-wrap--overflowing .entry-card__body::-webkit-scrollbar-thumb {
+.entry-card__body--overflowing::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 999px;
 }
 
-.entry-card__body-wrap--overflowing .entry-card__body::-webkit-scrollbar-thumb:hover {
+.entry-card__body--overflowing::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
-}
-
-.entry-card__body-fade {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 32px;
-  background: linear-gradient(to bottom, transparent, var(--bg-elevated));
-  pointer-events: none;
 }
 
 .example-block {

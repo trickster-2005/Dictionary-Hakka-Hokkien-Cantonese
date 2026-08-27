@@ -11,6 +11,7 @@ interface Props {
   isFavorite: (entry: Entry) => boolean
   onToggleFavorite: (entry: Entry) => void
   onOpenDetail: (entry: Entry) => void
+  emptyMessage?: string
 }
 
 export function LanguageCard({
@@ -21,6 +22,7 @@ export function LanguageCard({
   isFavorite,
   onToggleFavorite,
   onOpenDetail,
+  emptyMessage = '查無資料。',
 }: Props) {
   return (
     <div className={`lang-column lang-column--${lang}`}>
@@ -31,7 +33,7 @@ export function LanguageCard({
         )}
       </div>
 
-      {entries.length === 0 && <p className="lang-card__placeholder">查無資料。</p>}
+      {entries.length === 0 && <p className="lang-card__placeholder">{emptyMessage}</p>}
 
       {entries.length > 0 && (
         <div className="lang-column__cards">
