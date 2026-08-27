@@ -45,6 +45,18 @@ SIM_RE = re.compile(r"\(sim:([^)]*)\)")
 # High-confidence enough to treat as a strong (transitively-linked) synonym.
 HASH_REF_RE = re.compile(r"^#([^；;、,，。]+)")
 
+# "即係" ("that is/means") followed by one or more #-linked cross-references
+# appearing *anywhere* in the explanation, not just at the very start — e.g.
+# 薪水's "即係#人工 或者#糧" or 做瓜's "...即係#瓜老襯，即係#死" (two separate
+# matches). Everything after the first #word must still be another #word
+# (optionally joined by 或/或者/、) for the chain to keep extending — real
+# punctuation (，。；) ends it, same confidence level as HASH_REF_RE since
+# it's still words.hk's own editor-placed cross-reference, just not
+# positioned at the start of the text. No recursion into the linked entry's
+# own text — just what's already sitting in this row's own content.
+JIHAI_RE = re.compile(r"即係(?:\s*(?:或者|或|、)?\s*#[^\s#，。；！？、]+)+")
+HASH_TOKEN_RE = re.compile(r"#([^\s#，。；！？、]+)")
+
 
 def _split_headword_field(field: str):
     """'嗅:cau3' -> [('嗅','cau3')]; '瓊:king4,凝:king4' -> [('瓊','king4'),('凝','king4')]
@@ -144,6 +156,10 @@ def _parse_content(content: str, headword: str):
         if m:
             strong_aliases.append(m.group(1).strip())
         glosses.extend(extract_glosses(zho.lstrip("#"), headword))
+
+    for part in definition_parts:
+        for jihai_match in JIHAI_RE.finditer(part):
+            strong_aliases.extend(HASH_TOKEN_RE.findall(jihai_match.group(0)))
 
     strong_aliases = [a for a in dict.fromkeys(strong_aliases) if a and a != headword]
     return register_tag, definition, examples, glosses, strong_aliases
