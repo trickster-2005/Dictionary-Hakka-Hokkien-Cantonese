@@ -156,7 +156,7 @@
   bottom: 10px;
   background: none;
   border: none;
-  font-size: 15px;
+  font-size: 18.75px; /* 15px * 1.25 */
   line-height: 1;
   cursor: pointer;
   color: var(--text-muted);
