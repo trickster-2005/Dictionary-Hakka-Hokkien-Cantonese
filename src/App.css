@@ -356,6 +356,24 @@
   text-decoration: none;
 }
 
+.entry-card__body--clamped {
+  position: relative;
+  max-height: 340px; /* ~20 lines total per card once the header/tag/links
+    chrome above and below are counted in */
+  overflow: hidden;
+}
+
+.entry-card__body--clamped::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 32px;
+  background: linear-gradient(to bottom, transparent, var(--bg-elevated));
+  pointer-events: none;
+}
+
 .example-block {
   margin-top: 10px;
   padding: 8px 10px;

@@ -47,19 +47,22 @@ export function EntryCard({ entry, favorited, onToggleFavorite, showLangLabel, o
         </div>
       )}
       {entry.registerTag && <span className="tag">{entry.registerTag}</span>}
-      {entry.definition && <p className="entry-card__definition">{entry.definition}</p>}
 
-      {entry.examples.map((ex) => (
-        <div key={ex.id} className="example-block">
-          <p className="example-block__text">
-            {ex.exampleText}
-            {ex.audioUrl && <PlayButton src={ex.audioUrl} label="播放例句發音" />}
-          </p>
-          {ex.exampleTranslationZh && (
-            <p className="example-block__translation">{ex.exampleTranslationZh}</p>
-          )}
-        </div>
-      ))}
+      <div className={`entry-card__body${clickable ? ' entry-card__body--clamped' : ''}`}>
+        {entry.definition && <p className="entry-card__definition">{entry.definition}</p>}
+
+        {entry.examples.map((ex) => (
+          <div key={ex.id} className="example-block">
+            <p className="example-block__text">
+              {ex.exampleText}
+              {ex.audioUrl && <PlayButton src={ex.audioUrl} label="播放例句發音" />}
+            </p>
+            {ex.exampleTranslationZh && (
+              <p className="example-block__translation">{ex.exampleTranslationZh}</p>
+            )}
+          </div>
+        ))}
+      </div>
 
       <div className="source-links">
         <a className="source-link" href={entry.sourceUrl} target="_blank" rel="noreferrer">
