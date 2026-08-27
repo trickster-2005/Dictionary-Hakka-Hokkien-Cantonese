@@ -8,11 +8,14 @@ export function FavoriteStar({ active, onToggle }: Props) {
     <button
       type="button"
       className={`favorite-star${active ? ' favorite-star--active' : ''}`}
-      onClick={onToggle}
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
       aria-pressed={active}
       aria-label={active ? '取消收藏' : '加入收藏'}
     >
-      {active ? '★' : '☆'}
+      ♥
     </button>
   )
 }

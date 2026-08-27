@@ -3,43 +3,29 @@ import { useEffect, useState } from 'react'
 const STORAGE_KEY = 'words-lookup:theme'
 type Theme = 'light' | 'dark'
 
-function readStoredTheme(): Theme | null {
+// Defaults to light regardless of system preference; only a manual toggle
+// switches to dark (and that choice is remembered).
+function readStoredTheme(): Theme {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw === 'light' || raw === 'dark' ? raw : null
+    return localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light'
   } catch {
-    return null
+    return 'light'
   }
 }
 
 export function useTheme() {
-  const [override, setOverride] = useState<Theme | null>(() => readStoredTheme())
+  const [theme, setTheme] = useState<Theme>(() => readStoredTheme())
 
   useEffect(() => {
-    const root = document.documentElement
-    if (override) {
-      root.setAttribute('data-theme', override)
-    } else {
-      root.removeAttribute('data-theme')
-    }
+    document.documentElement.setAttribute('data-theme', theme)
     try {
-      if (override) {
-        localStorage.setItem(STORAGE_KEY, override)
-      } else {
-        localStorage.removeItem(STORAGE_KEY)
-      }
+      localStorage.setItem(STORAGE_KEY, theme)
     } catch {
       // ignore
     }
-  }, [override])
+  }, [theme])
 
-  const toggle = () => {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const current = override ?? (prefersDark ? 'dark' : 'light')
-    setOverride(current === 'dark' ? 'light' : 'dark')
-  }
+  const toggle = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
 
-  const isDark = override === 'dark' || (override === null && window.matchMedia('(prefers-color-scheme: dark)').matches)
-
-  return { override, isDark, toggle }
+  return { isDark: theme === 'dark', toggle }
 }

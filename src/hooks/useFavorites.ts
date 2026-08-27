@@ -7,8 +7,10 @@ function readFavorites(): string[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
-    // ignore favorites saved by an older numeric-id format
-    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []
+    if (!Array.isArray(parsed)) return []
+    // drop anything saved under an older key format (plain search term, or
+    // numeric zh_term_id) — a valid key is always lang|variant|script|pron
+    return parsed.filter((v): v is string => typeof v === 'string' && v.split('|').length === 4)
   } catch {
     return []
   }
@@ -25,13 +27,16 @@ export function useFavorites() {
     }
   }, [favorites])
 
-  const toggleFavorite = useCallback((term: string) => {
+  // Newest first — toggled cards are added at the front, not appended, so
+  // the favorites view can show most-recently-saved first with no extra
+  // timestamp bookkeeping.
+  const toggleFavorite = useCallback((key: string) => {
     setFavorites((prev) =>
-      prev.includes(term) ? prev.filter((t) => t !== term) : [...prev, term],
+      prev.includes(key) ? prev.filter((k) => k !== key) : [key, ...prev],
     )
   }, [])
 
-  const isFavorite = useCallback((term: string) => favorites.includes(term), [favorites])
+  const isFavorite = useCallback((key: string) => favorites.includes(key), [favorites])
 
   return { favorites, toggleFavorite, isFavorite }
 }

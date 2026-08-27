@@ -1,16 +1,16 @@
 import { LANG_ORDER } from '../constants'
 import { LanguageCard } from './LanguageCard'
-import { FavoriteStar } from './FavoriteStar'
 import type { DictionaryClient } from '../db/client'
-import type { HakkaVariant } from '../types'
+import type { Entry, HakkaVariant } from '../types'
 
 interface Props {
   db: DictionaryClient
   term: string
   hakkaVariant: HakkaVariant
   onHakkaVariantChange: (value: HakkaVariant) => void
-  favorited: boolean
-  onToggleFavorite: () => void
+  isFavorite: (entry: Entry) => boolean
+  onToggleFavorite: (entry: Entry) => void
+  onOpenDetail: (entry: Entry) => void
 }
 
 export function TermResult({
@@ -18,14 +18,14 @@ export function TermResult({
   term,
   hakkaVariant,
   onHakkaVariantChange,
-  favorited,
+  isFavorite,
   onToggleFavorite,
+  onOpenDetail,
 }: Props) {
   return (
     <section className="term-block">
       <div className="term-header">
         <h2>{term}</h2>
-        <FavoriteStar active={favorited} onToggle={onToggleFavorite} />
       </div>
       <div className="card-row">
         {LANG_ORDER.map((lang) => (
@@ -35,6 +35,9 @@ export function TermResult({
             entries={db.getEntriesForQuery(term, lang, hakkaVariant)}
             hakkaVariant={hakkaVariant}
             onHakkaVariantChange={onHakkaVariantChange}
+            isFavorite={isFavorite}
+            onToggleFavorite={onToggleFavorite}
+            onOpenDetail={onOpenDetail}
           />
         ))}
       </div>
